@@ -46,6 +46,7 @@ int main() {
             printf("printenv - Print environment variables\n");
             printf("create - Create a new C file\n");
             printf("edit - Edit an existing C file\n");
+            printf("cd - Change directory\n");
             printf("listprogs - List available programs\n");
             printf("\n\n");
             clear_line(input);
@@ -53,6 +54,8 @@ int main() {
         }
 
         //COMANDO CD (Deslocamento entre diretórios)
+
+        // utilizando também strncmp para permitir cd acompanhado de ".."
         else if (strcmp(input, "cd") == 0 || strncmp(input, "cd ", 3) == 0) {
             char input_copy[100];
             strcpy(input_copy, input);
@@ -83,6 +86,9 @@ int main() {
         }
         
         // COMANDO PARA VISUALIZAR VARIÁVEIS DE AMBIENTE
+
+        //Como nosso Interpretador é simples, vamos mostrar apenas 
+        // as variáveis USER, HOST e PWD, que são as mais relevantes para o usuário.
         else if (strcmp(input, "printenv") == 0) {
             char hostname[100];
             char pwd[1024];
@@ -113,7 +119,8 @@ int main() {
         else if (strcmp(input, "listprogs") == 0) {
             DIR *dir;
             struct dirent *entry;
-
+            
+            //cria um fluxo de diretório para ler o conteúdo da pasta "programs"
             dir = opendir("./programs");
 
             if (dir == NULL) {
@@ -124,6 +131,7 @@ int main() {
             printf("\n\n");
             printf("Available programs:\n");
 
+            //vai ler o conteudo do diretorio que foi aberto opendir
             while ((entry = readdir(dir)) != NULL) {
                 char *ext = strrchr(entry->d_name, '.');
 
@@ -138,7 +146,7 @@ int main() {
 
                     strcpy(program_name, entry->d_name);
 
-                    // Remove a extensão .c
+                    // Remove a extensão .c oara deixar uma visualização melhor
                     char *dot = strrchr(program_name, '.');
                     if (dot != NULL) {
                         *dot = '\0';
@@ -148,6 +156,7 @@ int main() {
                 }
             }
 
+            //fecha o fluxo de diretorio criado
             closedir(dir);
             printf("\n\n");
         }
