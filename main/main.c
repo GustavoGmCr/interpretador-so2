@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <signal.h>
 #include <errno.h>
+#include <fcntl.h>
 
 
 // guarda o pid do filho atual. Se não tiver filhos rodando, fica 0.
@@ -24,6 +25,52 @@ void handle_sigint(int sig) { // funcao chamada no ctrl + c (signal interrupt)
         kill(current_child, SIGINT); //se tem filho rodando, encerra
     }
     write(STDOUT_FILENO, "\n", 1); // volta o terminal
+}
+void apply_redirections(const char *outfile, int out_append,
+                         const char *errfile, int err_append,
+                         int err_to_out) {
+    // aplica redirecionamentos de saida no processo filho antes do exec
+    // outfile: arquivo para onde vai stdout (> ou >>)
+    // out_append: 0 = truncar (>), 1 = append (>>)
+    // errfile: arquivo para onde vai stderr (2> ou 2>>)
+    // err_append: 0 = truncar (2>), 1 = append (2>>)
+    // err_to_out: 1 = stderr segue stdout (2>&1)
+    // usa open + dup2 + close (segue padrao do exemplo1.c da aula
+    if (outfile != NULL) {
+        int flags = O_WRONLY | O_CREAT;
+        flags |= out_append ? O_APPEND : O_TRUNC;
+        int fd = open(outfile, flags, 0644);
+        if (fd == -1) {
+            fprintf(stderr, "MySh: %s: %s\n", outfile, strerror(errno));
+            exit(1);
+        }
+        if (dup2(fd, STDOUT_FILENO) == -1) {
+            fprintf(stderr, "MySh: dup2: %s\n", strerror(errno));
+            close(fd);
+            exit(1);
+        }
+        close(fd);
+    }
+    if (err_to_out) {
+        if (dup2(STDOUT_FILENO, STDERR_FILENO) == -1) {
+            fprintf(stderr, "MySh: dup2: %s\n", strerror(errno));
+            exit(1);
+        }
+    } else if (errfile != NULL) {
+        int flags = O_WRONLY | O_CREAT;
+        flags |= err_append ? O_APPEND : O_TRUNC;
+        int fd = open(errfile, flags, 0644);
+        if (fd == -1) {
+            fprintf(stderr, "MySh: %s: %s\n", errfile, strerror(errno));
+            exit(1);
+        }
+        if (dup2(fd, STDERR_FILENO) == -1) {
+            fprintf(stderr, "MySh: dup2: %s\n", strerror(errno));
+            close(fd);
+            exit(1);
+        }
+        close(fd);
+    }
 }
 
 int main() {
@@ -63,7 +110,14 @@ int main() {
             printf("create - Create a new C file\n");
             printf("edit - Edit an existing C file\n");
             printf("cd - Change directory\n");
-            printf("listprogs - List available programs\n");  // VER SE VAI USAR 
+            printf("listprogs - List available programs\n");
+            printf("\nRedirection operators:\n");
+            printf("  >  file   Redirect stdout to file (truncate)\n");
+            printf("  >> file   Redirect stdout to file (append)\n");
+            printf("  2> file   Redirect stderr to file (truncate)\n");
+            printf("  2>>file   Redirect stderr to file (append)\n");
+            printf("  2>&1      Redirect stderr to stdout\n");
+            printf("\n");  // VER SE VAI USAR 
             printf("\n\n");
             clear_line(input);
             continue;
@@ -259,10 +313,70 @@ int main() {
             if (args[0] == NULL) {
                 continue;
             }
+            // --- REDIRECIONAMENTO DE I/O ---
+            // Varre args atrás de >, >>, 2> e 2>>
+            // remove os operadores e nomes de arquivo do array
+            // para que o exec receba só o comando + argumentos reais
+
+            // conta quantos argumentos temos antes de modificar o array
+            int argc = 0;
+            while (argc < 9 && args[argc] != NULL) argc++;
+
+            char *outfile = NULL;   // arquivo para stdout (>)
+            char *errfile = NULL;   // arquivo para stderr (2>)
+            int out_append = 0;     // flag: >> (append) em vez de > (trunc)
+            int err_append = 0;     // flag: 2>> (append)
+            int err_to_out = 0;     // flag: 2>&1 (stderr segue stdout)
+
+            for (int j = 0; j < argc; j++) {
+                if (args[j] == NULL) continue;
+
+                if (strcmp(args[j], ">>") == 0 && args[j+1] != NULL) {
+                    outfile = args[j+1];
+                    out_append = 1;
+                    args[j] = NULL;
+                    args[j+1] = NULL;
+                }
+                else if (strcmp(args[j], ">") == 0 && args[j+1] != NULL) {
+                    outfile = args[j+1];
+                    out_append = 0;
+                    args[j] = NULL;
+                    args[j+1] = NULL;
+                }
+                else if (strcmp(args[j], "2>>") == 0 && args[j+1] != NULL) {
+                    errfile = args[j+1];
+                    err_append = 1;
+                    args[j] = NULL;
+                    args[j+1] = NULL;
+                }
+                else if (strcmp(args[j], "2>") == 0 && args[j+1] != NULL) {
+                    if (strcmp(args[j+1], "&1") == 0) {
+                        err_to_out = 1;       // 2>&1: stderr segue stdout
+                        args[j] = NULL;
+                        args[j+1] = NULL;
+                    } else {
+                        errfile = args[j+1];
+                        err_append = 0;
+                        args[j] = NULL;
+                        args[j+1] = NULL;
+                    }
+                }
+            }
+
+            // compacta o array removendo as posicoes que viraram NULL
+            int dst = 0;
+            for (int src = 0; src < argc; src++) {
+                if (args[src] != NULL) {
+                    args[dst++] = args[src];
+                }
+            }
+            args[dst] = NULL;
+
             char source_path[200];
             char exec_path[200];
             sprintf(source_path, "%s.c", args[0]); // armazena caminho do arquivo c
             sprintf(exec_path, "%s", args[0]); // armazena caminho do executavel
+
 
             /*
                 Verifica se existe um arquivo .c com o nome do comando.
@@ -274,7 +388,13 @@ int main() {
                 printf("Compilando e executando programa: %s.c...\n", args[0]);
                 pid_t compile_pid = fork(); // gera um processo filho para compilar o programa
                 if (compile_pid == 0) {
-                    char *gcc_args[] = {"gcc", source_path, "-o", exec_path, NULL}; // cria o comando gcc para compilar e passa pro execvp
+                    char *gcc_args[] = {
+                        "gcc",
+                        source_path,
+                        "-o",
+                        exec_path,
+                        NULL
+                    };
                     execvp("gcc", gcc_args); // compila o programa
                     perror("Erro ao executar gcc");
                     exit(1);
@@ -288,10 +408,18 @@ int main() {
                     if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
                         pid_t run_pid = fork();
                         if (run_pid == 0) {
-                            execvp(exec_path, args); // roda o programa
+                            signal(SIGINT, SIG_DFL);
+                            apply_redirections(
+                                outfile,
+                                out_append,
+                                errfile,
+                                err_append,
+                                err_to_out
+                            );
+                            execvp(exec_path, args);
                             perror("Erro ao executar programa compilado");
                             exit(1);
-                        } 
+                        }
                         else if (run_pid > 0) {
                             waitpid(run_pid, NULL, 0); // espera o termino do filho (programa sendo rodado)
                         } 
@@ -311,7 +439,8 @@ int main() {
                 pid_t pid = fork(); // gera um processo filho
                 if (pid == 0) {
                     signal(SIGINT, SIG_DFL); // restaura o comportamento padrão do sinal SIGINT para o processo filho
-                    execvp(args[0], args); // executa o comando 
+                    apply_redirections(outfile, out_append, errfile, err_append, err_to_out);
+                    execvp(args[0], args);
 
                     perror("Erro");
                     exit(1);
