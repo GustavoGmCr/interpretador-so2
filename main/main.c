@@ -14,7 +14,7 @@
 pid_t current_child = 0;
 
 void clear_line(char *input) {
-    input[strcspn(input, "\n")] = 0; 
+    input[strcspn(input, "\n")] = 0;  // pula linha e mostra o prompt vazio de novo, igual o terminal tradicional
 }
 void clear_terminal(){
     printf("\033[H\033[J");
@@ -37,17 +37,17 @@ int main() {
     
     while (1){
         gethostname(hostname, sizeof(hostname));
-        getcwd(cwd, sizeof(cwd));
+        getcwd(cwd, sizeof(cwd)); // pega o caminho
 
-        char *path_min = strstr(cwd, "interpretador-so2");
+        char *path_min = strstr(cwd, "interpretador-so2"); // pega o caminho a partir da pasta do projeto
         if (path_min == NULL) {
-            path_min = cwd;
+            path_min = cwd; // se não encontrar a pasta do projeto, mostra o caminho completo
         }
         
         printf("[MySh] %s@%s:~%s$ ", getenv("USER"), hostname, path_min);
         if (fgets(input, sizeof(input), stdin) == NULL) {
-            clearerr(stdin);
-            continue;
+            printf("\n");
+            break; // sai do loop se o usuário pressionar Ctrl+D (EOF)
         }
         clear_line(input);
         
@@ -64,7 +64,7 @@ int main() {
             printf("create - Create a new C file\n");
             printf("edit - Edit an existing C file\n");
             printf("cd - Change directory\n");
-            printf("listprogs - List available programs\n");
+            printf("listprogs - List available programs\n");  // VER SE VAI USAR 
             printf("\n\n");
             clear_line(input);
             continue;
@@ -78,13 +78,13 @@ int main() {
             strcpy(input_copy, input);
             strtok(input_copy, " ");
             char *path = strtok(NULL, " ");
-
+            
             if (path == NULL) {
-                path = getenv("HOME");
-            }
-            if (path == NULL) {
-                printf("Erro: variável HOME não encontrada.\n");
+                printf("Erro: colocar caminho.\n");
                 continue;
+            }
+            if (*path == '~') {
+                path = getenv("HOME");
             }
             if (chdir(path) != 0) {
                 perror("Erro ao mudar de diretório");
@@ -105,42 +105,32 @@ int main() {
         else if (strcmp(input, "printenv") == 0) {
             char hostname[100];
             char pwd[1024];
-
             char *user = getenv("USER");
-
             if (user == NULL) {
                 user = "Unknown";
             }
-
             if(gethostname(hostname, sizeof(hostname)) != 0){
                 strcpy(hostname, "Unknown");
             }
-
             if(getcwd(pwd, sizeof(pwd)) == NULL){
                 strcpy(pwd, "Unknown");
             }
-
             printf("USER=%s\n", user);
             printf("HOST=%s\n", hostname);
             printf("PWD=%s\n", pwd);
-
             continue;
-        } 
-
+        }
         
         // COMANDO DE LISTAGEM DE PROGRAMAS
         else if (strcmp(input, "listprogs") == 0) {
             DIR *dir;
             struct dirent *entry;
-            
-            //cria um fluxo de diretório para ler o conteúdo da pasta "programs"
-            dir = opendir("./programs");
+            dir = opendir("./programs");//cria um fluxo de diretório para ler o conteúdo da pasta "programs"
 
             if (dir == NULL) {
                 perror("Unable to open directory");
                 continue;
             }
-
             printf("\n\n");
             printf("Available programs:\n");
 
@@ -164,50 +154,44 @@ int main() {
                     printf("- %s\n", program_name);
                 }
             }
-
             //fecha o fluxo de diretorio criado
             closedir(dir);
             printf("\n\n");
         }
 
-
         //COMANDO PARA CRIAR ARQUIVOS .c
-
         else if (strcmp(input, "create") == 0 || strncmp(input, "create ", 7) == 0) {
             char input_copy[100];
             strcpy(input_copy, input);
-
             strtok(input_copy, " ");
-            char *filename = strtok(NULL, " ");
+
+            // pode ser nome OU caminho
+            char *filepath = strtok(NULL, " ");
             char *extra_arg = strtok(NULL, " ");
 
-            if (filename == NULL) {
-                fprintf(stderr, "MySh: create: nome do arquivo não informado\n");
-                fprintf(stderr, "Uso correto: create <nome_arquivo>\n");
+            if (filepath == NULL) {
+                fprintf(stderr,"MySh: create: caminho do arquivo não informado\n");
+                fprintf(stderr,"Uso correto: create <arquivo>\n");
                 continue;
             }
-
             if (extra_arg != NULL) {
-                fprintf(stderr, "MySh: create: x x x x\n");
-                fprintf(stderr, "Uso correto: create <nome_arquivo>\n");
+                fprintf(stderr,"MySh: create: argumentos demais\n");
+                fprintf(stderr,"Uso correto: create <arquivo>\n");
                 continue;
             }
-
-            if (access(filename, F_OK) == 0) {
-                fprintf(stderr, "MySh: createprog: %s: arquivo já existe\n", filename);
+            // verifica se já existe
+            if (access(filepath, F_OK) == 0) { // access verifica se o arquivo existe, F_OK é a flag de verificação
+                                               // pode-se ter R_OK e W_OK para ver permissão de read e write
+                fprintf(stderr, "MySh: create: %s: arquivo já existe\n",filepath);
                 continue;
             }
-
-            FILE *file = fopen(filename, "w");
-
+            FILE *file = fopen(filepath, "w");
             if (file == NULL) {
-                fprintf(stderr, "MySh: create: %s: %s\n", filename, strerror(errno));
+                fprintf(stderr, "MySh: create: %s: %s\n", filepath, strerror(errno));
                 continue;
             }
-
             fclose(file);
-
-            printf("Arquivo criado: %s\n", filename);
+            printf("Arquivo criado: %s\n", filepath);
             continue;
         }
 
@@ -216,54 +200,50 @@ int main() {
         else if (strcmp(input, "edit") == 0 || strncmp(input, "edit ", 5) == 0) {
             char input_copy[100];
             strcpy(input_copy, input);
-
             strtok(input_copy, " ");
-            char *filename = strtok(NULL, " ");
+            // agora pode ser nome OU caminho
+            char *filepath = strtok(NULL, " ");
             char *extra_arg = strtok(NULL, " ");
-
-            if (filename == NULL) {
-                fprintf(stderr, "MySh: edit: nome do arquivo não informado\n");
-                fprintf(stderr, "Uso correto: edit <arquivo.c>\n");
+            if (filepath == NULL) {
+                fprintf(stderr, "MySh: edit: caminho do arquivo não informado\n");
+                fprintf(stderr, "Uso correto: edit <arquivo>\n");
                 continue;
             }
-
             if (extra_arg != NULL) {
-                fprintf(stderr, "MySh: edit: x x x x\n");
-                fprintf(stderr, "Uso correto: edit <arquivo.c>\n");
+                fprintf(stderr, "MySh: edit: argumentos demais\n");
+                fprintf(stderr, "Uso correto: edit <arquivo>\n");
                 continue;
             }
-
-            char file_path[300];
-            snprintf(file_path, sizeof(file_path), "../programs/%s", filename);
-
-            if (access(file_path, F_OK) != 0) {
-                fprintf(stderr, "MySh: edit: %s: arquivo não encontrado\n", file_path);
+            // verifica se o arquivo existe
+            if (access(filepath, F_OK) != 0) {
+                fprintf(stderr, "MySh: edit: %s: arquivo não encontrado\n", filepath);
                 continue;
             }
-
+            // pega editor padrão do sistema
             char *editor = getenv("EDITOR");
-
             if (editor == NULL) {
                 editor = "nano";
             }
-
             pid_t editor_pid = fork();
-
             if (editor_pid == 0) {
-                char *editor_args[] = {editor, file_path, NULL};
-
+                signal(SIGINT, SIG_DFL);
+                char *editor_args[] = {
+                    editor,
+                    filepath,
+                    NULL
+                };
                 execvp(editor, editor_args);
-
                 fprintf(stderr, "MySh: %s: %s\n", editor, strerror(errno));
                 exit(1);
             }
             else if (editor_pid > 0) {
-                wait(NULL);
+                current_child = editor_pid;
+                waitpid(editor_pid, NULL, 0);
+                current_child = 0;
             }
             else {
                 fprintf(stderr, "MySh: fork: %s\n", strerror(errno));
             }
-
             continue;
         }
 
@@ -271,11 +251,10 @@ int main() {
         else {
             char *args[10];
             int i = 0;
-            args[i] = strtok(input, " ");
-
-            while (args[i] != NULL && i < 9) {
+            args[i] = strtok(input, " "); // pega o primeiro token de comando e depois os tokens de argumento
+            while (args[i] != NULL && i < 9) { 
                 i++;
-                args[i] = strtok(NULL, " ");
+                args[i] = strtok(NULL, " "); // pega os próximos tokens de argumento, se existirem, até o limite de 9 argumentos
             }
             args[9] = NULL;
             if (args[0] == NULL) {
@@ -283,9 +262,8 @@ int main() {
             }
             char source_path[200];
             char exec_path[200];
-
-            sprintf(source_path, "./programs/%s.c", args[0]);
-            sprintf(exec_path, "./programs/%s", args[0]);
+            sprintf(source_path, "%s.c", args[0]);
+            sprintf(exec_path, "%s", args[0]);
 
             /*
                 Verifica se existe um arquivo .c com o nome do comando.
@@ -293,11 +271,11 @@ int main() {
                 usuário digita "hello"
                 shell procura "../programs/hello.c"
             */
-            if (access(source_path, F_OK) == 0) {
+            if (access(source_path, F_OK) == 0) { 
                 printf("Compilando e executando programa: %s.c...\n", args[0]);
-                pid_t compile_pid = fork();
+                pid_t compile_pid = fork(); // gera um processo filho para compilar o programa
                 if (compile_pid == 0) {
-                    char *gcc_args[] = {"gcc", source_path, "-o", exec_path, NULL};
+                    char *gcc_args[] = {"gcc", source_path, "-o", exec_path, NULL}; // cria o comando gcc para compilar e passa pro execvp
                     execvp("gcc", gcc_args);
                     perror("Erro ao executar gcc");
                     exit(1);
