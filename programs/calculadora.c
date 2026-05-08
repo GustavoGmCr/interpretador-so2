@@ -17,6 +17,7 @@ void print_usage(FILE* stream, int exit_code)
         "  -s  --subtracao valor   Realiza uma subtracao.\n"
         "  -m  --multiplicacao valor Realiza uma multiplicacao.\n"
         "  -d  --divisao valor     Realiza uma divisao.\n"
+        "ATENCAO: O VALOR INICIAL DA OPERACAO EH SEMPRE 0.\n"
     );
 
     exit(exit_code);
@@ -48,10 +49,6 @@ int main(int argc, char* argv[])
         {
             case 'h':
                 print_usage(stdout, 0);
-
-            case 'n':
-                number = atoi(optarg);
-                break;
 
             case 'a':
                 number += atoi(optarg);
