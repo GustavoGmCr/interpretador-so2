@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <errno.h>
 
 void clear_line(char *input) {
     input[strcspn(input, "\n")] = 0; 
@@ -28,7 +29,7 @@ int main() {
         if (path_min == NULL) {
             path_min = cwd;
         }
-        
+
         printf("[MySh] %s@%s: ~%s$ ", getenv("USER"), hostname, path_min);
         fgets(input, sizeof(input), stdin);
         clear_line(input);
@@ -37,11 +38,16 @@ int main() {
         if (strcmp(input, "exit") == 0) {
             break;
         } else if (strcmp(input, "help") == 0) {
+            printf("\n\n");
             printf("Available commands:\n");
             printf("help - Show this help message\n");
             printf("exit - Exit the shell\n");
             printf("clear - Clear the terminal\n");
+            printf("printenv - Print environment variables\n");
+            printf("create - Create a new C file\n");
+            printf("edit - Edit an existing C file\n");
             printf("listprogs - List available programs\n");
+            printf("\n\n");
             clear_line(input);
             continue;
         }
@@ -74,19 +80,48 @@ int main() {
         else if (strcmp(input, "clear") == 0) {
             clear_terminal();
             continue;
+        }
+        
+        // COMANDO PARA VISUALIZAR VARIÁVEIS DE AMBIENTE
+        else if (strcmp(input, "printenv") == 0) {
+            char hostname[100];
+            char pwd[1024];
+
+            char *user = getenv("USER");
+
+            if (user == NULL) {
+                user = "Unknown";
+            }
+
+            if(gethostname(hostname, sizeof(hostname)) != 0){
+                strcpy(hostname, "Unknown");
+            }
+
+            if(getcwd(pwd, sizeof(pwd)) == NULL){
+                strcpy(pwd, "Unknown");
+            }
+
+            printf("USER=%s\n", user);
+            printf("HOST=%s\n", hostname);
+            printf("PWD=%s\n", pwd);
+
+            continue;
         } 
+
+        
         // COMANDO DE LISTAGEM DE PROGRAMAS
         else if (strcmp(input, "listprogs") == 0) {
             DIR *dir;
             struct dirent *entry;
 
-            dir = opendir("../programs");
+            dir = opendir("./programs");
 
             if (dir == NULL) {
                 perror("Unable to open directory");
                 continue;
             }
 
+            printf("\n\n");
             printf("Available programs:\n");
 
             while ((entry = readdir(dir)) != NULL) {
@@ -114,6 +149,104 @@ int main() {
             }
 
             closedir(dir);
+            printf("\n\n");
+        }
+
+
+        //COMANDO PARA CRIAR ARQUIVOS .c
+
+        else if (strcmp(input, "create") == 0 || strncmp(input, "create ", 7) == 0) {
+            char input_copy[100];
+            strcpy(input_copy, input);
+
+            strtok(input_copy, " ");
+            char *filename = strtok(NULL, " ");
+            char *extra_arg = strtok(NULL, " ");
+
+            if (filename == NULL) {
+                fprintf(stderr, "MySh: create: nome do arquivo não informado\n");
+                fprintf(stderr, "Uso correto: create <nome_arquivo>\n");
+                continue;
+            }
+
+            if (extra_arg != NULL) {
+                fprintf(stderr, "MySh: create: x x x x\n");
+                fprintf(stderr, "Uso correto: create <nome_arquivo>\n");
+                continue;
+            }
+
+            if (access(filename, F_OK) == 0) {
+                fprintf(stderr, "MySh: createprog: %s: arquivo já existe\n", filename);
+                continue;
+            }
+
+            FILE *file = fopen(filename, "w");
+
+            if (file == NULL) {
+                fprintf(stderr, "MySh: create: %s: %s\n", filename, strerror(errno));
+                continue;
+            }
+
+            fclose(file);
+
+            printf("Arquivo criado: %s\n", filename);
+            continue;
+        }
+
+        //COMANDO PARA EDITAR ARQUIVOS .c
+
+        else if (strcmp(input, "edit") == 0 || strncmp(input, "edit ", 5) == 0) {
+            char input_copy[100];
+            strcpy(input_copy, input);
+
+            strtok(input_copy, " ");
+            char *filename = strtok(NULL, " ");
+            char *extra_arg = strtok(NULL, " ");
+
+            if (filename == NULL) {
+                fprintf(stderr, "MySh: edit: nome do arquivo não informado\n");
+                fprintf(stderr, "Uso correto: edit <arquivo.c>\n");
+                continue;
+            }
+
+            if (extra_arg != NULL) {
+                fprintf(stderr, "MySh: edit: x x x x\n");
+                fprintf(stderr, "Uso correto: edit <arquivo.c>\n");
+                continue;
+            }
+
+            char file_path[300];
+            snprintf(file_path, sizeof(file_path), "../programs/%s", filename);
+
+            if (access(file_path, F_OK) != 0) {
+                fprintf(stderr, "MySh: edit: %s: arquivo não encontrado\n", file_path);
+                continue;
+            }
+
+            char *editor = getenv("EDITOR");
+
+            if (editor == NULL) {
+                editor = "nano";
+            }
+
+            pid_t editor_pid = fork();
+
+            if (editor_pid == 0) {
+                char *editor_args[] = {editor, file_path, NULL};
+
+                execvp(editor, editor_args);
+
+                fprintf(stderr, "MySh: %s: %s\n", editor, strerror(errno));
+                exit(1);
+            }
+            else if (editor_pid > 0) {
+                wait(NULL);
+            }
+            else {
+                fprintf(stderr, "MySh: fork: %s\n", strerror(errno));
+            }
+
+            continue;
         }
 
         // EXECUÇÃO DE PROGRAMAS
@@ -138,8 +271,8 @@ int main() {
             char source_path[200];
             char exec_path[200];
 
-            sprintf(source_path, "../programs/%s.c", args[0]);
-            sprintf(exec_path, "../programs/%s", args[0]);
+            sprintf(source_path, "./programs/%s.c", args[0]);
+            sprintf(exec_path, "./programs/%s", args[0]);
 
             /*
                 Verifica se existe um arquivo .c com o nome do comando.
