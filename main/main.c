@@ -46,8 +46,7 @@ int main() {
         
         printf("[MySh] %s@%s:~%s$ ", getenv("USER"), hostname, path_min);
         if (fgets(input, sizeof(input), stdin) == NULL) {
-            printf("\n");
-            break; // sai do loop se o usuário pressionar Ctrl+D (EOF)
+            continue;
         }
         clear_line(input);
         
