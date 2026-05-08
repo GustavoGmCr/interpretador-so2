@@ -17,7 +17,7 @@ void clear_line(char *input) {
     input[strcspn(input, "\n")] = 0;  // pula linha e mostra o prompt vazio de novo, igual o terminal tradicional
 }
 void clear_terminal(){
-    printf("\033[H\033[J"); // código de escape ANSI q limpa a tela e posiciona o cursor no cant o superior esquerd
+    printf("\033[H\033[J");  // código de escape ANSI q limpa a janela do terminal e posiciona o cursor no inicio
 }
 void handle_sigint(int sig) { // funcao chamada no ctrl + c (signal interrupt)
     if (current_child != 0) {
