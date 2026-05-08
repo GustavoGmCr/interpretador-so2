@@ -17,7 +17,7 @@ void clear_line(char *input) {
     input[strcspn(input, "\n")] = 0;  // pula linha e mostra o prompt vazio de novo, igual o terminal tradicional
 }
 void clear_terminal(){
-    printf("\033[H\033[J");
+    printf("\033[H\033[J"); // código de escape ANSI q limpa a tela e posiciona o cursor no cant o superior esquerd
 }
 void handle_sigint(int sig) { // funcao chamada no ctrl + c (signal interrupt)
     if (current_child != 0) {
@@ -223,7 +223,7 @@ int main() {
             if (editor == NULL) {
                 editor = "nano";
             }
-            pid_t editor_pid = fork();
+            pid_t editor_pid = fork(); // processo do nano, que é filho
             if (editor_pid == 0) {
                 signal(SIGINT, SIG_DFL);
                 char *editor_args[] = {
@@ -261,8 +261,8 @@ int main() {
             }
             char source_path[200];
             char exec_path[200];
-            sprintf(source_path, "%s.c", args[0]);
-            sprintf(exec_path, "%s", args[0]);
+            sprintf(source_path, "%s.c", args[0]); // armazena caminho do arquivo c
+            sprintf(exec_path, "%s", args[0]); // armazena caminho do executavel
 
             /*
                 Verifica se existe um arquivo .c com o nome do comando.
@@ -275,7 +275,7 @@ int main() {
                 pid_t compile_pid = fork(); // gera um processo filho para compilar o programa
                 if (compile_pid == 0) {
                     char *gcc_args[] = {"gcc", source_path, "-o", exec_path, NULL}; // cria o comando gcc para compilar e passa pro execvp
-                    execvp("gcc", gcc_args);
+                    execvp("gcc", gcc_args); // compila o programa
                     perror("Erro ao executar gcc");
                     exit(1);
                 } 
@@ -288,12 +288,12 @@ int main() {
                     if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
                         pid_t run_pid = fork();
                         if (run_pid == 0) {
-                            execvp(exec_path, args);
+                            execvp(exec_path, args); // roda o programa
                             perror("Erro ao executar programa compilado");
                             exit(1);
                         } 
                         else if (run_pid > 0) {
-                            waitpid(run_pid, NULL, 0);
+                            waitpid(run_pid, NULL, 0); // espera o termino do filho (programa sendo rodado)
                         } 
                         else {
                             perror("Erro no fork da execução");
@@ -311,7 +311,7 @@ int main() {
                 pid_t pid = fork(); // gera um processo filho
                 if (pid == 0) {
                     signal(SIGINT, SIG_DFL); // restaura o comportamento padrão do sinal SIGINT para o processo filho
-                    execvp(args[0], args); 
+                    execvp(args[0], args); // executa o comando 
 
                     perror("Erro");
                     exit(1);

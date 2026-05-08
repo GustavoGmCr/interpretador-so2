@@ -27,9 +27,7 @@ int main(int argc, char* argv[])
 {
     int next_option;
     int number = 0;
-
     program_name = argv[0];
-
     const char* const short_options = "hn:a:s:m:d:";
 
     const struct option long_options[] = {
@@ -67,7 +65,6 @@ int main(int argc, char* argv[])
                     fprintf(stderr, "Erro: divisao por zero nao e permitida.\n");
                     exit(2);
                 }
-
                 number /= atoi(optarg);
                 break;
 
@@ -83,7 +80,7 @@ int main(int argc, char* argv[])
 
     } while (next_option != -1);
 
-    printf("Resultado: %d\n", number);
 
+    printf("Resultado: %d\n", number);
     return 0;
 }
